@@ -1,0 +1,14 @@
+# LLM
+llama-cpp-python
+# Speech-to-text
+openai-whisper
+SpeechRecognition
+# Text-to-speech
+kokoro
+# Audio
+sounddevice
+PyAudio
+# Memory
+mem0ai
+sentence-transformers
+chromadb
