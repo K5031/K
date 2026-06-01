@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "cybrex"
+version = "0.1.0"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "llama-cpp-python",
+    "openai-whisper",
+    "SpeechRecognition",
+    "kokoro",
+    "sounddevice",
+    "PyAudio",
+    "numpy",
+    "mem0ai",
+    "sentence-transformers",
+    "chromadb",
+    "requests",
+    "pyyaml",
+]
+
+[project.scripts]
+cybrex = "controller:run"
+
+[tool.setuptools]
+py-modules = ["main", "controller", "interfaces", "registry"]
+
+[tool.setuptools.packages.find]
+exclude = ["venv*", "scripts*", "venv.*"]

@@ -8,7 +8,11 @@ kokoro
 # Audio
 sounddevice
 PyAudio
+numpy
 # Memory
 mem0ai
 sentence-transformers
 chromadb
+requests
+# Registry
+yaml

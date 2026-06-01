@@ -1,12 +1,20 @@
 from datetime import datetime, timedelta, timezone
 from queue import Queue, Empty
 from time import sleep
+import subprocess
 import threading
 import numpy as np
 import speech_recognition as sr
-import torch
 import whisper
 from interfaces import InputInterface
+
+
+def _cuda_available():
+    try:
+        subprocess.run(["nvidia-smi"], capture_output=True, check=True)
+        return True
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return False
 
 
 class Module(InputInterface):
@@ -67,7 +75,7 @@ class Module(InputInterface):
             audio_np,
             language="en",
             task="transcribe",
-            fp16=torch.cuda.is_available(),
+            fp16=_cuda_available(),
             temperature=0.0,
             condition_on_previous_text=False,
         )
