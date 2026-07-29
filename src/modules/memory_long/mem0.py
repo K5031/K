@@ -63,7 +63,7 @@ class Module(LongTermMemoryInterface):
                 self._queue.task_done()
                 break
             try:
-                self.memory.add(messages, user_id=self.user_id)
+                self.memory.add(messages, filters={"user_id": self.user_id})
             except Exception as e:
                 print(f"Memory store failed: {e}")
             self._queue.task_done()
@@ -78,5 +78,5 @@ class Module(LongTermMemoryInterface):
         self._queue.put(messages)
 
     def retrieve(self, query: str) -> str:
-        results = self.memory.search(query=query, user_id=self.user_id, limit=3)
+        results = self.memory.search(query=query, filters={"user_id": self.user_id}, limit=3)
         return "\n".join(f"- {entry['memory']}" for entry in results["results"])
