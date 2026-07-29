@@ -3,11 +3,11 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cybrex"
+name = "k"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
-    "llama-cpp-python",
+    "llama-cpp-python[server]",
     "openai-whisper",
     "SpeechRecognition",
     "kokoro",
@@ -19,13 +19,16 @@ dependencies = [
     "chromadb",
     "requests",
     "pyyaml",
+    "openai",
 ]
 
 [project.scripts]
-cybrex = "controller:run"
+k = "controller:run"
 
 [tool.setuptools]
-py-modules = ["main", "controller", "interfaces", "registry"]
+package-dir = {"" = "src"}
+py-modules = ["main", "controller", "interfaces", "registry", "config"]
 
 [tool.setuptools.packages.find]
+where = ["src"]
 exclude = ["venv*", "scripts*", "venv.*"]

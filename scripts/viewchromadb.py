@@ -1,15 +1,35 @@
-import chromadb
-import sys
+#!/usr/bin/env python3
+"""View all memories stored in the ChromaDB long-term memory collection."""
 
-client = chromadb.PersistentClient(path="memory/chroma")
-collection = client.get_collection("cybrex")
-results = collection.get(include=["metadatas"])
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from config import BASE_DIR
+
+import chromadb
+
+CHROMA_PATH = os.path.join(BASE_DIR, "memory", "chroma")
+COLLECTION_NAME = "cybrex"
+
+client = chromadb.PersistentClient(path=CHROMA_PATH)
+
+try:
+    collection = client.get_collection(COLLECTION_NAME)
+except Exception:
+    print("No memory collection found.")
+    sys.exit(0)
+
+results = collection.get(include=["documents"])
 
 if not results["ids"]:
     print("No memories stored.")
-    sys.exit()
+    sys.exit(0)
 
-for id, m in zip(results["ids"], results["metadatas"]):
-    print(f"[{id[:8]}] {m.get('data')}")
+for i, (id_, doc) in enumerate(zip(results["ids"], results["documents"]), 1):
+    print(f"[{i}] {id_[:8]}")
+    print(doc)
+    print()
 
-print(f"\nTotal: {len(results['ids'])}")
+print(f"Total: {len(results['ids'])} memories")

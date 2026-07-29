@@ -1,46 +1,18 @@
 # Cybrex
 A desktop AI assistant.
 
-## Prerequisites
-
-- Python 3.11 (newer versions may have package compatibility issues)
-- A GGUF model file (e.g. from [HuggingFace](https://huggingface.co/models?library=gguf))
-- CUDA toolkit (optional, for NVIDIA GPU acceleration)
-
-## Quickstart
+## Installation
 
 ```bash
-git clone https://github.com/cybrex-ai/Cybrex
-cd Cybrex
-cp config.example.yaml config.yaml
-python3.11 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+
 ```
 
-> **Note:** For NVIDIA GPU acceleration, install llama-cpp-python manually:
-> ```bash
-> CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --no-cache-dir
-> ```
-
-Edit `config.yaml`'s core and memory_long sections with your model path and hardware settings, then:
-
-```bash
-python main.py
-```
+Edit `config.yaml`'s core and memory_long sections with your model path and hardware setting
 
 ## Example Configuration
 
 ```yaml
-input: terminal
-output: terminal
-core:
-  module: llama-cpp
-  model_path: models/your-model.gguf
-  n_gpu_layers: 10
-  n_ctx: 32768
-memory_short: flashback
-memory_long: mem0
+
 ```
 
 ## Built-in Modules
@@ -69,7 +41,7 @@ class Module(InputInterface):
 
 Place it under `modules/<capability>/your_module.py` and reference it in `config.yaml`. Details about each interface can be found in interfaces.py.
 
-## Interfaces
+## Available Interfaces
 
 - `InputInterface` — `get_input() -> str`
 - `OutputInterface` — `send(token: str)`, `flush()`, `interrupt()`
@@ -84,7 +56,3 @@ Place it under `modules/<capability>/your_module.py` and reference it in `config
 - [x] Interrupt mid-generation
 - [ ] Vision module
 - [ ] Action modules
-
-## License
-
-Apache 2.0
