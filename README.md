@@ -1,4 +1,4 @@
-# Cybrex
+# K
 A desktop AI assistant.
 
 ## Installation

@@ -4,7 +4,7 @@ memory/
 system_prompt.txt
 notes/
 config.yaml
-src/data/
+data
 
 # Test
 tests/
