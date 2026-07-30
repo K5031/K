@@ -5,11 +5,11 @@ output:
 core:
   module: llama-cpp
   model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
-  n_gpu_layers: 5
+  n_gpu_layers: 15
   n_ctx: 32768
 memory_short: 
   module: flashback
 memory_long:
   module: mem0
-  model_path: Qwen3.5-0.8B-Q4_K_M.gguf
+  model_path: gemma-4-E2B-it-Q4_K_M.gguf
   n_gpu_layers: 5

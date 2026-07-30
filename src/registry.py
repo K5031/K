@@ -13,6 +13,7 @@ class Registry:
     def __exit__(self, *args):
         for module in self._registry.values():
             if hasattr(module, "stop"):
+                print("Stopping module:", module)
                 module.stop()
 
     def register(self, capability: str, module):

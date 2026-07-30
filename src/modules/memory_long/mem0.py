@@ -5,6 +5,7 @@ import threading
 import queue
 import os
 from mem0 import Memory
+from config import BASE_DIR
 from interfaces import LongTermMemoryInterface
 
 
@@ -12,9 +13,14 @@ class Module(LongTermMemoryInterface):
     def __init__(self, model_path, n_gpu_layers, **kwargs):
         self.user_id = "user"
         self.server = subprocess.Popen(
-            ["python", "-m", "llama_cpp.server", "--model", model_path, "--port", "8080", "--n_gpu_layers", str(n_gpu_layers)],
-            # stdout=subprocess.DEVNULL,
-            # stderr=subprocess.DEVNULL,
+            ["python", "-m", "llama_cpp.server",
+            "--model", model_path,
+            "--port", "8080",
+            "--n_gpu_layers", str(n_gpu_layers),
+            "--n_ctx", "12288",
+            "--offload_kqv", "False",
+            "--flash_attn", "True",
+            "--verbose", "False"],
             preexec_fn=os.setsid
         )
         self._wait_for_server()
@@ -38,9 +44,10 @@ class Module(LongTermMemoryInterface):
                 "provider": "chroma",
                 "config": {
                     "collection_name": "k_memory",
-                    "path": "data/chroma"
+                    "path": os.path.join(BASE_DIR, "data", "chroma")
                 }
-            }
+            },
+            "custom_instructions": "Extract only facts the user explicitly stated that would still be worth knowing weeks from now — their name, job, relationships, preferences, or ongoing plans. Skip greetings, small talk, questions, meta-conversation (e.g. asking who the assistant is, what it can do, or stating what it does or doesn't know), and anything about the assistant itself. If nothing qualifies, do not extract anything.",
         })
         self._queue = queue.Queue()
         self._worker = threading.Thread(target=self._process_queue, daemon=True)
@@ -50,10 +57,12 @@ class Module(LongTermMemoryInterface):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                requests.get("http://localhost:8080/health")
-                return
+                r = requests.get("http://localhost:8080/v1/models")
+                if r.status_code == 200:
+                    return
             except requests.exceptions.ConnectionError:
-                time.sleep(1)
+                pass
+            time.sleep(1)
         raise TimeoutError("llama-server failed to start within timeout")
 
     def _process_queue(self):
@@ -63,7 +72,7 @@ class Module(LongTermMemoryInterface):
                 self._queue.task_done()
                 break
             try:
-                self.memory.add(messages, filters={"user_id": self.user_id})
+                self.memory.add(messages, user_id=self.user_id)
             except Exception as e:
                 print(f"Memory store failed: {e}")
             self._queue.task_done()

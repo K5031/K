@@ -37,11 +37,17 @@ class Module(CoreInterface):
 
     def generate(self, user_input: str, context: list[dict], memories: str) -> Iterator[str]:
         self._interrupted = False
+
+        system_content = self.system_prompt
+        if memories:
+            system_content += f"\n\nRelevant memories about the user:\n{memories}"
+
         messages = [
-            {"role": "system", "content": self.system_prompt},
+            {"role": "system", "content": system_content},
             *context,
-            {"role": "user", "content": f"Relevant context:\n{memories}\n\n{user_input}" if memories else user_input},
+            {"role": "user", "content": user_input},
         ]
+        
         print(f"[debug] messages: {messages}")
         for chunk in self.llm.create_chat_completion(
             messages=messages,
