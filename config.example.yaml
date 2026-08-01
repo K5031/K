@@ -3,13 +3,13 @@ input:
 output: 
   module: terminal
 core:
-  module: llama-cpp
+  module: llama_cpp
   model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
   n_gpu_layers: 10
-  n_ctx: 10000
+  n_ctx: 4096
 memory_short: 
   module: flashback
 memory_long:
-  module: remi
-  model_path: Qwen3.5-9B-Q4_K_M.gguf
-  n_gpu_layers: 10
+  module: remis
+  model_path: gemma-4-E2B-it-Q4_K_M.gguf
+  n_gpu_layers: 5

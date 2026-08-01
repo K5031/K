@@ -71,6 +71,8 @@ class Module(LongTermMemoryInterface):
              "--n_ctx", str(n_ctx),
              "--flash_attn", "True",
              "--verbose", "False"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             preexec_fn=os.setsid
         )
         self._wait_for_server()
