@@ -1,6 +1,7 @@
 from typing import Iterator
 from llama_cpp import Llama
 from interfaces import CoreInterface
+from klogger import get_logger
 
 
 class Module(CoreInterface):
@@ -13,6 +14,9 @@ class Module(CoreInterface):
     ):
         self.system_prompt = "You are an AI assistant. Keep responses concise."
         self.model_path = model_path
+        self.log = get_logger("Core")
+
+        self.log.info("Loading model: %s", model_path)
         self.llm = Llama(
             model_path=model_path,
             n_ctx=n_ctx,
@@ -28,9 +32,9 @@ class Module(CoreInterface):
             verbose=False,
         )
         self._interrupted = False
-    
+
     def interrupt(self):
-        self._interrupted = True    
+        self._interrupted = True
 
     def set_system_prompt(self, prompt: str) -> None:
         self.system_prompt = prompt
@@ -47,8 +51,7 @@ class Module(CoreInterface):
             *context,
             {"role": "user", "content": user_input},
         ]
-        
-        print(f"[debug] messages: {messages}")
+        self.log.debug("messages: %s", messages)
         for chunk in self.llm.create_chat_completion(
             messages=messages,
             stream=True,
