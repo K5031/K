@@ -7,7 +7,7 @@
 
 set -u
 
-PORT="${1:-8080}"
+PORT="${1:-8081}"
 URL="http://localhost:${PORT}/v1/chat/completions"
 
 PROMPT_HEADER=$'Extract only facts the user explicitly stated that would still be worth knowing weeks from now — their name, job, relationships, preferences, or ongoing plans.\n\nSkip greetings, small talk, questions, and anything about the assistant itself. If nothing qualifies, return an empty list.\n\nAlways split distinct facts into separate entries in the list — never combine multiple facts into one sentence, even if they were stated together.\n\nExamples:\nInput: hi\nOutput: {"facts": []}\nInput: my name is Alex and I work as a nurse\nOutput: {"facts": ["User\'s name is Alex", "User works as a nurse"]}\nInput: I\'m K5031 and I go to UCL\nOutput: {"facts": ["User\'s name is K5031", "User attends UCL"]}\nInput: what\'s your name?\nOutput: {"facts": []}\n\n'
@@ -89,6 +89,13 @@ run_case "multi-fact (name+uni)"   $'user: I\'m K5031 and I go to UCL\nassistant
 run_case "small talk (repeat 1)"   $'user: hi\nassistant: Hello!'                                                empty
 run_case "small talk (repeat 2)"   $'user: hi\nassistant: Hello!'                                                empty
 run_case "small talk (repeat 3)"   $'user: hi\nassistant: Hello!'                                                empty
+
+# Third-party relationship facts — this exact phrasing failed to extract
+# anything in the full pipeline test (case 6), isolating it here to see
+# whether it's an extraction-prompt gap or something else.
+run_case "relationship (friend name)"   $'user: my friend\'s name is Alex\nassistant: Nice to meet them.'          1
+run_case "relationship (sibling)"       $'user: my sister lives in Manchester\nassistant: That\'s nice.'           1
+run_case "relationship (partner job)"   $'user: my wife works as a doctor\nassistant: That\'s a great career.'     1
 
 echo
 echo "=== Done ==="

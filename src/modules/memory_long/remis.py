@@ -37,6 +37,43 @@ Conversation:
 
 Return only valid JSON: {"facts": [...]}"""
 
+CONFLICT_CHECK_PROMPT = """You will see an EXISTING fact and a NEW fact about the user. Decide the relationship between them:
+
+SAME     — they express the same fact, just worded differently (same subject, same value)
+CONFLICT — they're about the same specific subject, but the value changed (a correction)
+DISTINCT — they're about different subjects or facts entirely, even if superficially similar wording
+
+Answer with exactly one word: SAME, CONFLICT, or DISTINCT.
+
+Examples:
+EXISTING: User's name is K5031
+NEW: User is called K5031
+Answer: SAME
+
+EXISTING: User's name is K5031
+NEW: User's name is Alex
+Answer: CONFLICT
+
+EXISTING: User works as a teacher
+NEW: User works as a software engineer
+Answer: CONFLICT
+
+EXISTING: User goes to UCL
+NEW: User studies computer science at UCL
+Answer: DISTINCT
+
+EXISTING: User has a dog named Rex
+NEW: User has a cat named Milo
+Answer: DISTINCT
+
+EXISTING: User's name is Alex
+NEW: Friend's name is Alex
+Answer: DISTINCT
+
+EXISTING: {existing}
+NEW: {new}
+Answer:"""
+
 
 def _format_conversation(messages: list[dict]) -> str:
     lines = []
@@ -69,16 +106,27 @@ class Module(LongTermMemoryInterface):
     def __init__(self, model_path, n_gpu_layers, n_ctx=4096,
                  collection_name="k_memory",
                  embed_model_name="Qwen/Qwen3-Embedding-0.6B",
-                 dedup_distance: float = 0.2, port: int = 8080, **kwargs):
+                 dedup_distance: float = 0.05,
+                 conflict_band_upper: float = 0.35,
+                 port: int = 8081, **kwargs):
         self.name = "Remis"
         self.user_id = "user"
         self.model_path = model_path
         self.port = port
         self.base_url = f"http://localhost:{port}"
         # Chroma's default space is squared L2 (not cosine) unless overridden —
-        # lower = more similar, 0 = identical. Tune this if dedup feels too
-        # loose (misses near-duplicates) or too strict (blocks real distinct facts).
+        # lower = more similar, 0 = identical.
+        # distance <= dedup_distance                -> near-exact string match, skip
+        #   (fast path, no LLM call — catches only true near-duplicates, e.g.
+        #   the same fact restated almost verbatim)
+        # dedup_distance < d <= conflict_band_upper  -> ambiguous; ask the LLM to
+        #   classify as SAME (paraphrase, skip) / CONFLICT (correction, replace) /
+        #   DISTINCT (different subject, keep both) — this band is intentionally
+        #   wide because raw distance alone can't reliably tell "same fact reworded"
+        #   apart from "different fact, same sentence template"
+        # distance > conflict_band_upper             -> clearly unrelated, store
         self.dedup_distance = dedup_distance
+        self.conflict_band_upper = conflict_band_upper
 
         print(f"[{self.name}] Extraction model: {model_path}")
         self.server = subprocess.Popen(
@@ -120,19 +168,49 @@ class Module(LongTermMemoryInterface):
     def _embed(self, text: str) -> list[float]:
         return self.embedder.encode(text).tolist()
 
-    def _is_duplicate(self, embedding: list[float]) -> bool:
-        """Check whether something near-identical to this fact is already stored."""
+    def _find_nearest(self, embedding: list[float]):
+        """Returns (id, text, distance) of the closest existing memory, or None."""
         if self.collection.count() == 0:
-            return False
+            return None
         results = self.collection.query(
             query_embeddings=[embedding],
             n_results=1,
             where={"user_id": self.user_id},
         )
+        ids = results.get("ids", [[]])[0]
         distances = results.get("distances", [[]])[0]
-        if not distances:
-            return False
-        return distances[0] <= self.dedup_distance
+        metadatas = results.get("metadatas", [[]])[0]
+        if not ids:
+            return None
+        return ids[0], metadatas[0].get("data", ""), distances[0]
+
+    def _check_conflict(self, existing_text: str, new_text: str) -> str:
+        """Ask the model to classify the relationship between an existing
+        memory and a new candidate fact. Returns 'SAME', 'CONFLICT', or
+        'DISTINCT'. Defaults to 'DISTINCT' on any failure — the safe choice,
+        since it never deletes anything, at worst it leaves a redundant entry."""
+        prompt = CONFLICT_CHECK_PROMPT.replace("{existing}", existing_text).replace("{new}", new_text)
+        try:
+            resp = requests.post(
+                f"{self.base_url}/v1/chat/completions",
+                json={
+                    "model": "local-model",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 10,
+                    "temperature": 0.0,
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            raw = resp.json()["choices"][0]["message"]["content"].strip().upper()
+            if "SAME" in raw:
+                return "SAME"
+            if "CONFLICT" in raw:
+                return "CONFLICT"
+            return "DISTINCT"
+        except Exception as e:
+            print(f"[{self.name}] conflict check failed, treating as distinct: {e}")
+            return "DISTINCT"
 
     def _process_queue(self):
         while True:
@@ -170,24 +248,49 @@ class Module(LongTermMemoryInterface):
         if not facts:
             return []
 
-        new_facts = []
-        new_embeddings = []
+        stored_facts = []
         for f in facts:
             emb = self._embed(f)
-            if self._is_duplicate(emb):
+            nearest = self._find_nearest(emb)
+
+            if nearest is None:
+                self._add_fact(f, emb)
+                stored_facts.append(f)
+                continue
+
+            nearest_id, nearest_text, distance = nearest
+
+            if distance <= self.dedup_distance:
                 print(f"[{self.name}] skipped duplicate: {f}")
                 continue
-            new_facts.append(f)
-            new_embeddings.append(emb)
 
-        if not new_facts:
-            return []
+            if distance <= self.conflict_band_upper:
+                verdict = self._check_conflict(nearest_text, f)
+                if verdict == "SAME":
+                    print(f"[{self.name}] skipped duplicate (paraphrase): {f}")
+                elif verdict == "CONFLICT":
+                    print(f"[{self.name}] conflict detected — replacing "
+                          f"'{nearest_text}' with '{f}'")
+                    self.collection.delete(ids=[nearest_id])
+                    self._add_fact(f, emb)
+                    stored_facts.append(f)
+                else:  # DISTINCT
+                    self._add_fact(f, emb)
+                    stored_facts.append(f)
+                continue
 
-        ids = [str(uuid.uuid4()) for _ in new_facts]
+            self._add_fact(f, emb)
+            stored_facts.append(f)
+
+        return stored_facts
+
+    def _add_fact(self, text: str, embedding: list[float]) -> None:
         now = datetime.now(timezone.utc).isoformat()
-        metadatas = [{"data": f, "user_id": self.user_id, "created_at": now} for f in new_facts]
-        self.collection.add(ids=ids, embeddings=new_embeddings, metadatas=metadatas)
-        return new_facts
+        self.collection.add(
+            ids=[str(uuid.uuid4())],
+            embeddings=[embedding],
+            metadatas=[{"data": text, "user_id": self.user_id, "created_at": now}],
+        )
 
     # ---- LongTermMemoryInterface ----
 

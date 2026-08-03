@@ -6,11 +6,8 @@ notes/
 config.yaml
 data
 
-# Test
-tests/
-
 # Byte-compiled / optimized / DLL files
-__pycache__/
+__pycachef__/
 *.py[codz]
 *$py.class
 
