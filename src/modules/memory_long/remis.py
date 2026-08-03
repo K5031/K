@@ -20,11 +20,15 @@ EXTRACTION_PROMPT = """Extract only facts the user explicitly stated that would 
 
 Skip greetings, small talk, questions, and anything about the assistant itself. If nothing qualifies, return an empty list.
 
+Always split distinct facts into separate entries in the list — never combine multiple facts into one sentence, even if they were stated together.
+
 Examples:
 Input: hi
 Output: {"facts": []}
 Input: my name is Alex and I work as a nurse
 Output: {"facts": ["User's name is Alex", "User works as a nurse"]}
+Input: I'm K5031 and I go to UCL
+Output: {"facts": ["User's name is K5031", "User attends UCL"]}
 Input: what's your name?
 Output: {"facts": []}
 
@@ -56,17 +60,31 @@ def _extract_json_facts(raw_text: str) -> list[str]:
 
 
 class Module(LongTermMemoryInterface):
+    """Remis — reminiscence-based long-term memory. Runs its own dedicated
+    extraction model (separate from core, to avoid KV-cache thrashing between
+    two very different prompt shapes on a shared server), extracts durable
+    facts from conversation, dedupes against existing memories, and recalls
+    them by semantic similarity."""
+
     def __init__(self, model_path, n_gpu_layers, n_ctx=4096,
                  collection_name="k_memory",
-                 embed_model_name="Qwen/Qwen3-Embedding-0.6B", **kwargs):
+                 embed_model_name="Qwen/Qwen3-Embedding-0.6B",
+                 dedup_distance: float = 0.2, port: int = 8080, **kwargs):
+        self.name = "Remis"
         self.user_id = "user"
         self.model_path = model_path
-        print(f"[memory_long] Extraction model: {model_path}")
+        self.port = port
+        self.base_url = f"http://localhost:{port}"
+        # Chroma's default space is squared L2 (not cosine) unless overridden —
+        # lower = more similar, 0 = identical. Tune this if dedup feels too
+        # loose (misses near-duplicates) or too strict (blocks real distinct facts).
+        self.dedup_distance = dedup_distance
 
+        print(f"[{self.name}] Extraction model: {model_path}")
         self.server = subprocess.Popen(
             ["python", "-m", "llama_cpp.server",
              "--model", model_path,
-             "--port", "8080",
+             "--port", str(port),
              "--n_gpu_layers", str(n_gpu_layers),
              "--n_ctx", str(n_ctx),
              "--flash_attn", "True",
@@ -78,7 +96,9 @@ class Module(LongTermMemoryInterface):
         self._wait_for_server()
 
         self.client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "data", "chroma"))
-        self.collection = self.client.get_or_create_collection(collection_name)
+        self.collection = self.client.get_or_create_collection(
+            collection_name, metadata={"hnsw:space": "cosine"}
+        )
         self.embedder = SentenceTransformer(embed_model_name, device="cpu")
 
         self._queue = queue.Queue()
@@ -89,16 +109,30 @@ class Module(LongTermMemoryInterface):
         start = time.time()
         while time.time() - start < timeout:
             try:
-                r = requests.get("http://localhost:8080/v1/models")
+                r = requests.get(f"{self.base_url}/v1/models")
                 if r.status_code == 200:
                     return
             except requests.exceptions.ConnectionError:
                 pass
             time.sleep(1)
-        raise TimeoutError("llama-server failed to start within timeout")
+        raise TimeoutError(f"{self.name} llama-server failed to start within timeout")
 
     def _embed(self, text: str) -> list[float]:
         return self.embedder.encode(text).tolist()
+
+    def _is_duplicate(self, embedding: list[float]) -> bool:
+        """Check whether something near-identical to this fact is already stored."""
+        if self.collection.count() == 0:
+            return False
+        results = self.collection.query(
+            query_embeddings=[embedding],
+            n_results=1,
+            where={"user_id": self.user_id},
+        )
+        distances = results.get("distances", [[]])[0]
+        if not distances:
+            return False
+        return distances[0] <= self.dedup_distance
 
     def _process_queue(self):
         while True:
@@ -109,9 +143,9 @@ class Module(LongTermMemoryInterface):
             try:
                 facts = self._extract_and_save(messages)
                 if facts:
-                    print(f"[memory_long] stored: {facts}")
+                    print(f"[{self.name}] stored: {facts}")
             except Exception as e:
-                print(f"Memory store failed: {e}")
+                print(f"[{self.name}] store failed: {e}")
             self._queue.task_done()
 
     def _extract_and_save(self, messages: list[dict]) -> list[str]:
@@ -121,7 +155,7 @@ class Module(LongTermMemoryInterface):
 
         prompt = EXTRACTION_PROMPT.replace("{conversation}", conversation)
         resp = requests.post(
-            "http://localhost:8080/v1/chat/completions",
+            f"{self.base_url}/v1/chat/completions",
             json={
                 "model": "local-model",
                 "messages": [{"role": "user", "content": prompt}],
@@ -136,12 +170,24 @@ class Module(LongTermMemoryInterface):
         if not facts:
             return []
 
-        ids = [str(uuid.uuid4()) for _ in facts]
-        embeddings = [self._embed(f) for f in facts]
+        new_facts = []
+        new_embeddings = []
+        for f in facts:
+            emb = self._embed(f)
+            if self._is_duplicate(emb):
+                print(f"[{self.name}] skipped duplicate: {f}")
+                continue
+            new_facts.append(f)
+            new_embeddings.append(emb)
+
+        if not new_facts:
+            return []
+
+        ids = [str(uuid.uuid4()) for _ in new_facts]
         now = datetime.now(timezone.utc).isoformat()
-        metadatas = [{"data": f, "user_id": self.user_id, "created_at": now} for f in facts]
-        self.collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
-        return facts
+        metadatas = [{"data": f, "user_id": self.user_id, "created_at": now} for f in new_facts]
+        self.collection.add(ids=ids, embeddings=new_embeddings, metadatas=metadatas)
+        return new_facts
 
     # ---- LongTermMemoryInterface ----
 
@@ -163,7 +209,7 @@ class Module(LongTermMemoryInterface):
             return ""
         return "\n".join(f"- {f}" for f in facts)
 
-    # ---- lifecycle (not part of the interface, but Registry may call it) ----
+    # ---- lifecycle ----
 
     def stop(self):
         self._queue.join()
