@@ -7,9 +7,10 @@ core:
   model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
   n_gpu_layers: 5
   n_ctx: 8192
-memory_short: 
+context:
   module: flashback
-memory_long:
+  model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
+memory:
   module: remis
   model_path: gemma-4-E4B-it-Q4_K_M.gguf
   n_gpu_layers: 5

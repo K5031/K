@@ -39,5 +39,5 @@ class Registry:
 def resolve_paths(config):
     for section in config.values():
         if "model_path" in section:
-            section["model_path"] = os.path.join(BASE_DIR, "..", "models", section["model_path"])
+            section["model_path"] = os.path.join(BASE_DIR, "models", section["model_path"])
     return config

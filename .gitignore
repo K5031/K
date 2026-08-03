@@ -1,6 +1,5 @@
 models/
 !models/.gitkeep
-memory/
 system_prompt.txt
 notes/
 config.yaml

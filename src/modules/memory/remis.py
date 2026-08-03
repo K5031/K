@@ -14,7 +14,8 @@ import requests
 from sentence_transformers import SentenceTransformer
 
 from config import BASE_DIR
-from interfaces import LongTermMemoryInterface
+from interfaces import MemoryInterface
+from klogger import get_logger
 
 EXTRACTION_PROMPT = """Extract only facts the user explicitly stated that would still be worth knowing weeks from now — their name, job, relationships, preferences, or ongoing plans.
 
@@ -96,7 +97,7 @@ def _extract_json_facts(raw_text: str) -> list[str]:
         return []
 
 
-class Module(LongTermMemoryInterface):
+class Module(MemoryInterface):
     """Remis — reminiscence-based long-term memory. Runs its own dedicated
     extraction model (separate from core, to avoid KV-cache thrashing between
     two very different prompt shapes on a shared server), extracts durable
@@ -110,6 +111,7 @@ class Module(LongTermMemoryInterface):
                  conflict_band_upper: float = 0.35,
                  port: int = 8081, **kwargs):
         self.name = "Remis"
+        self.log = get_logger(self.name)
         self.user_id = "user"
         self.model_path = model_path
         self.port = port
@@ -128,7 +130,7 @@ class Module(LongTermMemoryInterface):
         self.dedup_distance = dedup_distance
         self.conflict_band_upper = conflict_band_upper
 
-        print(f"[{self.name}] Extraction model: {model_path}")
+        self.log.info("Extraction model: %s", model_path)
         self.server = subprocess.Popen(
             ["python", "-m", "llama_cpp.server",
              "--model", model_path,
@@ -209,7 +211,7 @@ class Module(LongTermMemoryInterface):
                 return "CONFLICT"
             return "DISTINCT"
         except Exception as e:
-            print(f"[{self.name}] conflict check failed, treating as distinct: {e}")
+            self.log.warning("conflict check failed, treating as distinct: %s", e)
             return "DISTINCT"
 
     def _process_queue(self):
@@ -221,9 +223,9 @@ class Module(LongTermMemoryInterface):
             try:
                 facts = self._extract_and_save(messages)
                 if facts:
-                    print(f"[{self.name}] stored: {facts}")
+                    self.log.info("stored: %s", facts)
             except Exception as e:
-                print(f"[{self.name}] store failed: {e}")
+                self.log.error("store failed: %s", e)
             self._queue.task_done()
 
     def _extract_and_save(self, messages: list[dict]) -> list[str]:
@@ -261,16 +263,16 @@ class Module(LongTermMemoryInterface):
             nearest_id, nearest_text, distance = nearest
 
             if distance <= self.dedup_distance:
-                print(f"[{self.name}] skipped duplicate: {f}")
+                self.log.info("skipped duplicate: %s", f)
                 continue
 
             if distance <= self.conflict_band_upper:
                 verdict = self._check_conflict(nearest_text, f)
                 if verdict == "SAME":
-                    print(f"[{self.name}] skipped duplicate (paraphrase): {f}")
+                    self.log.info("skipped duplicate (paraphrase): %s", f)
                 elif verdict == "CONFLICT":
-                    print(f"[{self.name}] conflict detected — replacing "
-                          f"'{nearest_text}' with '{f}'")
+                    self.log.info("conflict detected — replacing '%s' with '%s'",
+                                   nearest_text, f)
                     self.collection.delete(ids=[nearest_id])
                     self._add_fact(f, emb)
                     stored_facts.append(f)

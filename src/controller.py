@@ -6,8 +6,8 @@ def run():
         inp = api.get("input")
         output = api.get("output")
         core = api.get("core")
-        short_mem = api.get("memory_short")
-        long_mem = api.get("memory_long")
+        contextMgr = api.get("context")
+        memory = api.get("memory")
 
         core.set_system_prompt(system_prompt)
 
@@ -19,8 +19,8 @@ def run():
                 print(f"\nUser: {user_input}")
                 output.interrupt()
 
-                memories = long_mem.retrieve(user_input)
-                context = short_mem.get()
+                memories = memory.retrieve(user_input)
+                context = contextMgr.get()
                 reply = ""
 
                 try:
@@ -36,9 +36,9 @@ def run():
                     output.interrupt()
                     print("\n[interrupted]")
             
-                short_mem.add("user", user_input)
-                short_mem.add("assistant", reply)
-                long_mem.store([
+                contextMgr.add("user", user_input)
+                contextMgr.add("assistant", reply)
+                memory.store([
                     {"role": "user", "content": user_input},
                     {"role": "assistant", "content": reply}
                 ])

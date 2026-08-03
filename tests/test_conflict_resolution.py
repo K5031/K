@@ -19,7 +19,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from modules.memory_long.remis import Module  # noqa: E402
+from modules.memory.remis import Module  # noqa: E402
 
 
 def get_all_facts(remis) -> list[str]:

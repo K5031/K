@@ -36,7 +36,7 @@ class CoreInterface(ABC):
         """Interrupt LLM generation"""
 
 
-class ShortTermMemoryInterface(ABC):
+class ContextInterface(ABC):
     @abstractmethod
     def add(self, role: str, content: str) -> None:
         """Add a message to the current session history."""
@@ -50,7 +50,7 @@ class ShortTermMemoryInterface(ABC):
         """Clear the current session history."""
 
 
-class LongTermMemoryInterface(ABC):
+class MemoryInterface(ABC):
     @abstractmethod
     def store(self, messages: list[dict]) -> None:
         """Extract and persist important facts from a conversation exchange."""
