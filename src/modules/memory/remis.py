@@ -149,7 +149,7 @@ class Module(MemoryInterface):
         self.collection = self.client.get_or_create_collection(
             collection_name, metadata={"hnsw:space": "cosine"}
         )
-        self.embedder = SentenceTransformer(embed_model_name, device="cpu")
+        self.embedder = SentenceTransformer(embed_model_name, device="cuda")
 
         self._queue = queue.Queue()
         self._worker = threading.Thread(target=self._process_queue, daemon=True)
