@@ -10,16 +10,15 @@ dependencies = [
     "llama-cpp-python[server]",
     "openai-whisper",
     "SpeechRecognition",
-    "kokoro",
     "sounddevice",
     "PyAudio",
     "numpy",
-    "mem0ai",
     "sentence-transformers",
     "chromadb",
     "requests",
     "pyyaml",
     "openai",
+    "kokoro",
 ]
 
 [project.scripts]

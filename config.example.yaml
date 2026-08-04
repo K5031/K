@@ -1,7 +1,7 @@
 input: 
   module: terminal
 output: 
-  module: terminal
+  module: kokoro
 core:
   module: llama_cpp
   model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf

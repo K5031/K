@@ -16,7 +16,6 @@ def run():
         try:
             while True:
                 user_input = inp.get_input()
-                print(f"\nUser: {user_input}")
                 output.interrupt()
 
                 memories = memory.retrieve(user_input)

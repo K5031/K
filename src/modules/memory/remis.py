@@ -168,7 +168,7 @@ class Module(MemoryInterface):
         raise TimeoutError(f"{self.name} llama-server failed to start within timeout")
 
     def _embed(self, text: str) -> list[float]:
-        return self.embedder.encode(text).tolist()
+        return self.embedder.encode(text, show_progress_bar=False).tolist()
 
     def _find_nearest(self, embedding: list[float]):
         """Returns (id, text, distance) of the closest existing memory, or None."""

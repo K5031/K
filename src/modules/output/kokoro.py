@@ -7,18 +7,19 @@ from interfaces import OutputInterface
 
 
 class Module(OutputInterface):
-    def __init__(self, voice="af_heart", lang_code="a"):
+    def __init__(self, voice="af_heart", lang_code="a", repo_id="hexgrad/Kokoro-82M"):
         self.stream = sd.OutputStream(
             samplerate=24000,
             channels=1,
             dtype="float32",
         )
         self.stream.start()
-        self.pipeline = KPipeline(lang_code=lang_code)
+        self.pipeline = KPipeline(lang_code=lang_code, repo_id=repo_id)
         self.voice = voice
         self.buffer = ""
         self.queue = queue.Queue()
         self.running = True
+        self._interrupted = threading.Event()
         self.thread = threading.Thread(
             target=self._worker,
             daemon=True,
@@ -31,8 +32,12 @@ class Module(OutputInterface):
                 text = self.queue.get(timeout=0.2)
             except Empty:
                 continue
+
+            if self._interrupted.is_set():
+                continue
+
             for _, _, audio in self.pipeline(text, voice=self.voice):
-                if not self.running:
+                if not self.running or self._interrupted.is_set():
                     break
                 self.stream.write(audio.reshape(-1, 1))
 
@@ -43,11 +48,13 @@ class Module(OutputInterface):
             self.buffer = ""
 
     def interrupt(self):
+        self._interrupted.set()
         while True:
             try:
                 self.queue.get_nowait()
             except queue.Empty:
                 break
+        self._interrupted.clear()
 
     def stop(self):
         self.running = False
