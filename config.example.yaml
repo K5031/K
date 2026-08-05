@@ -1,16 +1,5 @@
-input: 
-  module: terminal
-output: 
-  module: kokoro
-core:
-  module: llama_cpp
-  model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
-  n_gpu_layers: 5
-  n_ctx: 8192
-context:
-  module: flashback
-  model_path: gemma-4-26B-A4B-it-UD-Q4_K_M.gguf
-memory:
-  module: remis
-  model_path: gemma-4-E4B-it-Q4_K_M.gguf
-  n_gpu_layers: 5
+input: terminal
+output:  kokoro
+core: llama_cpp
+context: flashback
+memory: remis
