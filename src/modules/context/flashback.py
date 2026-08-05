@@ -9,11 +9,6 @@ DEFAULT_MAX_CONTEXT_TOKENS = 15600
 
 
 class Module(ContextInterface):
-    """Tracks conversation context for the current session, trimmed by
-    exact token count (using the real model's tokenizer, loaded vocab-only —
-    no weights, so it's fast and cheap) so it stays proportional to what
-    actually fills core's context window."""
-
     def __init__(self, model_path=DEFAULT_MODEL, max_context_tokens: int = DEFAULT_MAX_CONTEXT_TOKENS):
         self.conversation = []
         self.max_context_tokens = max_context_tokens
@@ -21,8 +16,6 @@ class Module(ContextInterface):
 
         resolved_path = resolve_model_path(model_path)
 
-        # vocab_only=True loads just the tokenizer, not the model weights —
-        # fast, cheap, and gives exact counts matching core's real tokenizer.
         self.tokenizer = Llama(model_path=resolved_path, vocab_only=True, verbose=False)
 
     def _count_tokens(self, text: str) -> int:

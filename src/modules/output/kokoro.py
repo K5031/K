@@ -24,9 +24,7 @@ class Module(OutputInterface):
         self.buffer = ""
         self.queue = queue.Queue()
         self.running = True
-        self._generation = 0  # bumped on every interrupt; anything queued/in-flight
-        # tagged with an older generation is stale and gets discarded — no race,
-        # since there's no separate "clear the flag" step for the worker to miss.
+        self._generation = 0
         self.thread = threading.Thread(
             target=self._worker,
             daemon=True,
@@ -41,7 +39,7 @@ class Module(OutputInterface):
                 continue
 
             if gen != self._generation:
-                continue  # stale — discard without playing
+                continue
 
             try:
                 for _, _, audio in self.pipeline(text, voice=self.voice):
@@ -53,14 +51,11 @@ class Module(OutputInterface):
 
     def send(self, token: str):
         self.buffer += token
-        if self.buffer.endswith((".", "!", "?", ",")):
+        if self.buffer.endswith((".", "!", "?")):
             self.queue.put((self._generation, self.buffer))
             self.buffer = ""
 
     def flush(self):
-        """Speak whatever's left in the buffer that never hit a punctuation
-        boundary — call this after a response completes normally (NOT after
-        an interrupt, since interrupt() already discards pending speech)."""
         if self.buffer.strip():
             self.log.debug("flushing trailing text: %r", self.buffer)
             self.queue.put((self._generation, self.buffer))

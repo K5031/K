@@ -15,6 +15,7 @@ class Module(CoreInterface):
         model_path=DEFAULT_MODEL,
         n_gpu_layers=DEFAULT_N_GPU_LAYERS,
         n_ctx=DEFAULT_N_CTX,
+        **kwargs
     ):
         self.system_prompt = "You are an AI assistant. Keep responses concise."
         self.log = get_logger("Core")

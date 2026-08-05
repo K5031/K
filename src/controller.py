@@ -35,13 +35,6 @@ def run():
                 first_token_time = None
                 token_count = 0
 
-                # SIGINT handling only matters DURING generation — a Ctrl+C
-                # can land inside llama.cpp's C-level log callback, where a
-                # raised KeyboardInterrupt gets silently swallowed by ctypes
-                # instead of propagating back to Python. Using a flag set by
-                # a custom handler (rather than relying on the exception)
-                # sidesteps that. Scoped to just this block so Ctrl+C during
-                # inp.get_input() keeps its normal, reliable behavior.
                 interrupted = {"flag": False}
 
                 def _on_sigint(signum, frame):
@@ -58,12 +51,16 @@ def run():
                         if inp.has_input() or interrupted["flag"]:
                             core.interrupt()
                             output.interrupt()
+                            interrupted["flag"] = False
                             print("\n[interrupted]")
                             break
 
                         output.send(token)
                         reply += token
                         token_count += 1
+                    else:
+                        if hasattr(output, "flush"):
+                            output.flush()
 
                     gen_end = time.time()
                     gen_total = gen_end - gen_start

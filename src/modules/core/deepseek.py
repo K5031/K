@@ -9,14 +9,10 @@ DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
 
 class Module(CoreInterface):
-    """DeepSeek API-backed core. Same interface as the local llama.cpp core —
-    controller.py doesn't need to know or care which one it's talking to."""
-
     def __init__(self, model="deepseek-v4-flash", **kwargs):
         self.log = get_logger("DeepSeek")
         self.model = model
-        self.thinking = "disabled"  # hardcoded default — revisit once there's
-        # a GUI to manage per-module settings without config schema drift
+        self.thinking = "disabled"
         self.system_prompt = "You are an AI assistant. Keep responses concise."
         self._interrupted = False
 
@@ -24,7 +20,7 @@ class Module(CoreInterface):
         if not self.api_key:
             raise ValueError(
                 "DeepSeek API key not found. Set the DEEPSEEK_API_KEY "
-                "environment variable — never hardcode it in config or source."
+                "environment variable."
             )
 
         self.log.info("Using model: %s (thinking=%s)", model, self.thinking)
@@ -92,8 +88,6 @@ class Module(CoreInterface):
                     break
                 chunk = json.loads(data)
                 delta = chunk["choices"][0]["delta"]
-                # reasoning_content holds thinking-mode output — kept separate
-                # from the final answer so it never leaks into output/TTS
                 token = delta.get("content", "")
                 if token:
                     yield token

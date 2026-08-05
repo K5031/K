@@ -90,7 +90,6 @@ def _format_conversation(messages: list[dict]) -> str:
 
 
 def _extract_json_facts(raw_text: str) -> list[str]:
-    """Small local models sometimes wrap JSON in extra text — pull it out."""
     match = re.search(r"\{.*\}", raw_text, re.DOTALL)
     if not match:
         return []
@@ -103,12 +102,6 @@ def _extract_json_facts(raw_text: str) -> list[str]:
 
 
 class Module(MemoryInterface):
-    """Remis — reminiscence-based long-term memory. Runs its own dedicated
-    extraction model (separate from core, to avoid KV-cache thrashing between
-    two very different prompt shapes on a shared server), extracts durable
-    facts from conversation, dedupes against existing memories, and recalls
-    them by semantic similarity."""
-
     def __init__(self, model_path=DEFAULT_MODEL, n_gpu_layers=DEFAULT_N_GPU_LAYERS,
                  n_ctx=DEFAULT_N_CTX,
                  collection_name="k_memory",
@@ -121,17 +114,6 @@ class Module(MemoryInterface):
         self.user_id = "user"
         self.port = port
         self.base_url = f"http://localhost:{port}"
-        # Chroma's default space is squared L2 (not cosine) unless overridden —
-        # lower = more similar, 0 = identical.
-        # distance <= dedup_distance                -> near-exact string match, skip
-        #   (fast path, no LLM call — catches only true near-duplicates, e.g.
-        #   the same fact restated almost verbatim)
-        # dedup_distance < d <= conflict_band_upper  -> ambiguous; ask the LLM to
-        #   classify as SAME (paraphrase, skip) / CONFLICT (correction, replace) /
-        #   DISTINCT (different subject, keep both) — this band is intentionally
-        #   wide because raw distance alone can't reliably tell "same fact reworded"
-        #   apart from "different fact, same sentence template"
-        # distance > conflict_band_upper             -> clearly unrelated, store
         self.dedup_distance = dedup_distance
         self.conflict_band_upper = conflict_band_upper
 
@@ -179,7 +161,6 @@ class Module(MemoryInterface):
         return self.embedder.encode(text, show_progress_bar=False).tolist()
 
     def _find_nearest(self, embedding: list[float]):
-        """Returns (id, text, distance) of the closest existing memory, or None."""
         if self.collection.count() == 0:
             return None
         results = self.collection.query(
@@ -195,10 +176,6 @@ class Module(MemoryInterface):
         return ids[0], metadatas[0].get("data", ""), distances[0]
 
     def _check_conflict(self, existing_text: str, new_text: str) -> str:
-        """Ask the model to classify the relationship between an existing
-        memory and a new candidate fact. Returns 'SAME', 'CONFLICT', or
-        'DISTINCT'. Defaults to 'DISTINCT' on any failure — the safe choice,
-        since it never deletes anything, at worst it leaves a redundant entry."""
         prompt = CONFLICT_CHECK_PROMPT.replace("{existing}", existing_text).replace("{new}", new_text)
         try:
             resp = requests.post(
@@ -284,7 +261,7 @@ class Module(MemoryInterface):
                     self.collection.delete(ids=[nearest_id])
                     self._add_fact(f, emb)
                     stored_facts.append(f)
-                else:  # DISTINCT
+                else:
                     self._add_fact(f, emb)
                     stored_facts.append(f)
                 continue
@@ -301,8 +278,6 @@ class Module(MemoryInterface):
             embeddings=[embedding],
             metadatas=[{"data": text, "user_id": self.user_id, "created_at": now}],
         )
-
-    # ---- MemoryInterface ----
 
     def store(self, messages: list[dict]) -> None:
         self._queue.put(messages)
@@ -321,8 +296,6 @@ class Module(MemoryInterface):
         if not facts:
             return ""
         return "\n".join(f"- {f}" for f in facts)
-
-    # ---- lifecycle ----
 
     def stop(self):
         self._queue.join()
