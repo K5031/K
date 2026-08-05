@@ -2,6 +2,10 @@ from llama_cpp import Llama
 
 from interfaces import ContextInterface
 from klogger import get_logger
+from utils import resolve_model_path
+
+DEFAULT_MODEL = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+DEFAULT_MAX_CONTEXT_TOKENS = 15600
 
 
 class Module(ContextInterface):
@@ -10,14 +14,16 @@ class Module(ContextInterface):
     no weights, so it's fast and cheap) so it stays proportional to what
     actually fills core's context window."""
 
-    def __init__(self, model_path: str, max_context_tokens: int = 6000):
+    def __init__(self, model_path=DEFAULT_MODEL, max_context_tokens: int = DEFAULT_MAX_CONTEXT_TOKENS):
         self.conversation = []
         self.max_context_tokens = max_context_tokens
         self.log = get_logger("Context")
 
+        resolved_path = resolve_model_path(model_path)
+
         # vocab_only=True loads just the tokenizer, not the model weights —
         # fast, cheap, and gives exact counts matching core's real tokenizer.
-        self.tokenizer = Llama(model_path=model_path, vocab_only=True, verbose=False)
+        self.tokenizer = Llama(model_path=resolved_path, vocab_only=True, verbose=False)
 
     def _count_tokens(self, text: str) -> int:
         return len(self.tokenizer.tokenize(text.encode("utf-8")))

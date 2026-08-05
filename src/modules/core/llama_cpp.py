@@ -2,23 +2,29 @@ from typing import Iterator
 from llama_cpp import Llama
 from interfaces import CoreInterface
 from klogger import get_logger
+from utils import resolve_model_path
+
+DEFAULT_MODEL = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
+DEFAULT_N_GPU_LAYERS = 5
+DEFAULT_N_CTX = 16384
 
 
 class Module(CoreInterface):
     def __init__(
         self,
-        model_path,
-        n_gpu_layers,
-        n_ctx,
-        **kwargs
+        model_path=DEFAULT_MODEL,
+        n_gpu_layers=DEFAULT_N_GPU_LAYERS,
+        n_ctx=DEFAULT_N_CTX,
     ):
         self.system_prompt = "You are an AI assistant. Keep responses concise."
-        self.model_path = model_path
         self.log = get_logger("Core")
 
-        self.log.info("Loading model: %s", model_path)
+        resolved_path = resolve_model_path(model_path)
+        self.model_path = resolved_path
+
+        self.log.info("Loading model: %s", resolved_path)
         self.llm = Llama(
-            model_path=model_path,
+            model_path=resolved_path,
             n_ctx=n_ctx,
             offload_kqv=True,
             n_gpu_layers=n_gpu_layers,
@@ -35,6 +41,10 @@ class Module(CoreInterface):
 
     def interrupt(self):
         self._interrupted = True
+        try:
+            self.llm.reset()
+        except Exception as e:
+            self.log.warning("reset after interrupt failed: %s", e)
 
     def set_system_prompt(self, prompt: str) -> None:
         self.system_prompt = prompt

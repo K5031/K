@@ -7,6 +7,7 @@ import numpy as np
 import speech_recognition as sr
 import whisper
 from interfaces import InputInterface
+from klogger import get_logger
 
 
 def _cuda_available():
@@ -25,12 +26,18 @@ class Module(InputInterface):
         record_timeout=2.0,
         phrase_timeout=3.0,
     ):
+        self.log = get_logger("Input")
         self.energy_threshold = energy_threshold
         self.record_timeout = record_timeout
         self.phrase_timeout = phrase_timeout
 
+        self._cuda = _cuda_available()
+        self.log.info("CUDA available: %s", self._cuda)
+
         self.source = sr.Microphone(sample_rate=16000)
         self.recorder = self._setup_recorder()
+
+        self.log.info("Loading Whisper model: %s", model)
         self.model = whisper.load_model(model)
 
         self.data_queue = Queue()
@@ -75,7 +82,7 @@ class Module(InputInterface):
             audio_np,
             language="en",
             task="transcribe",
-            fp16=_cuda_available(),
+            fp16=self._cuda,
             temperature=0.0,
             condition_on_previous_text=False,
         )
@@ -85,6 +92,11 @@ class Module(InputInterface):
             for seg in segments
             if seg["avg_logprob"] > -1.0
         ]
+
+        low_confidence = [seg["text"] for seg in segments if seg["avg_logprob"] <= -1.0]
+        if low_confidence:
+            self.log.debug("dropped low-confidence segments: %s", low_confidence)
+
         return " ".join(text_parts).strip()
 
     def _get_combined_text(self):
@@ -109,6 +121,7 @@ class Module(InputInterface):
         ):
             text = self._transcribe(self.buffer)
             if text:
+                self.log.info("transcribed: %s", text)
                 self.output_queue.put(text)
             self.buffer = b""
             self.last_audio_time = None
@@ -124,6 +137,7 @@ class Module(InputInterface):
             sleep(0.05)
 
     def stop(self):
+        self.log.info("stopping")
         self._running = False
         if self.stop_listening:
             self.stop_listening(wait_for_stop=False)
@@ -136,6 +150,6 @@ class Module(InputInterface):
             if text:
                 return text
             sleep(0.05)
-    
+
     def has_input(self) -> bool:
         return not self.output_queue.empty()

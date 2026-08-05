@@ -1,7 +1,9 @@
 import importlib
-import yaml
-import os
-from config import config, BASE_DIR
+from config import config
+from klogger import get_logger
+
+log = get_logger("Registry")
+
 
 class Registry:
     def __init__(self):
@@ -11,9 +13,9 @@ class Registry:
         return self
 
     def __exit__(self, *args):
-        for module in self._registry.values():
+        for capability, module in self._registry.items():
             if hasattr(module, "stop"):
-                print("Stopping module:", module)
+                log.info("Stopping module: %s (%s)", capability, module)
                 module.stop()
 
     def register(self, capability: str, module):
@@ -28,16 +30,9 @@ class Registry:
     @classmethod
     def from_config(cls) -> "Registry":
         api = cls()
-        resolved = resolve_paths(config)
-        for capability, spec in resolved.items():
-            module_name = spec.pop("module")
+        for capability, module_name in config.items():
+            log.info("Loading %s: %s", capability, module_name)
             mod = importlib.import_module(f"modules.{capability}.{module_name}")
-            instance = mod.Module(**spec)
+            instance = mod.Module()
             api.register(capability, instance)
         return api
-
-def resolve_paths(config):
-    for section in config.values():
-        if "model_path" in section:
-            section["model_path"] = os.path.join(BASE_DIR, "models", section["model_path"])
-    return config

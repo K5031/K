@@ -16,6 +16,11 @@ from sentence_transformers import SentenceTransformer
 from config import BASE_DIR
 from interfaces import MemoryInterface
 from klogger import get_logger
+from utils import resolve_model_path
+
+DEFAULT_MODEL = "gemma-4-E4B-it-Q4_K_M.gguf"
+DEFAULT_N_GPU_LAYERS = 5
+DEFAULT_N_CTX = 4096
 
 EXTRACTION_PROMPT = """Extract only facts the user explicitly stated that would still be worth knowing weeks from now — their name, job, relationships, preferences, or ongoing plans.
 
@@ -104,16 +109,16 @@ class Module(MemoryInterface):
     facts from conversation, dedupes against existing memories, and recalls
     them by semantic similarity."""
 
-    def __init__(self, model_path, n_gpu_layers, n_ctx=4096,
+    def __init__(self, model_path=DEFAULT_MODEL, n_gpu_layers=DEFAULT_N_GPU_LAYERS,
+                 n_ctx=DEFAULT_N_CTX,
                  collection_name="k_memory",
                  embed_model_name="Qwen/Qwen3-Embedding-0.6B",
                  dedup_distance: float = 0.05,
                  conflict_band_upper: float = 0.35,
-                 port: int = 8081, **kwargs):
+                 port: int = 8080):
         self.name = "Remis"
         self.log = get_logger(self.name)
         self.user_id = "user"
-        self.model_path = model_path
         self.port = port
         self.base_url = f"http://localhost:{port}"
         # Chroma's default space is squared L2 (not cosine) unless overridden —
@@ -130,10 +135,13 @@ class Module(MemoryInterface):
         self.dedup_distance = dedup_distance
         self.conflict_band_upper = conflict_band_upper
 
-        self.log.info("Extraction model: %s", model_path)
+        resolved_path = resolve_model_path(model_path)
+        self.model_path = resolved_path
+
+        self.log.info("Extraction model: %s", resolved_path)
         self.server = subprocess.Popen(
             ["python", "-m", "llama_cpp.server",
-             "--model", model_path,
+             "--model", resolved_path,
              "--port", str(port),
              "--n_gpu_layers", str(n_gpu_layers),
              "--n_ctx", str(n_ctx),
@@ -294,7 +302,7 @@ class Module(MemoryInterface):
             metadatas=[{"data": text, "user_id": self.user_id, "created_at": now}],
         )
 
-    # ---- LongTermMemoryInterface ----
+    # ---- MemoryInterface ----
 
     def store(self, messages: list[dict]) -> None:
         self._queue.put(messages)
