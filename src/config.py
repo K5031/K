@@ -1,3 +1,4 @@
+import shutil
 import yaml
 import os
 
@@ -5,18 +6,17 @@ CONFIG_DIR = os.path.expanduser("~/.config/k")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.yaml")
 SYSTEM_PROMPT_PATH = os.path.join(CONFIG_DIR, "system_prompt.txt")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # project root, not src/
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_CONFIG = os.path.join(BASE_DIR, "config.example.yaml")
 DEFAULT_PROMPT = os.path.join(BASE_DIR, "default_prompt.txt")
 
 
 def ensure_config():
-    global CONFIG_PATH, SYSTEM_PROMPT_PATH
     os.makedirs(CONFIG_DIR, exist_ok=True)
     if not os.path.exists(CONFIG_PATH):
-        CONFIG_PATH = DEFAULT_CONFIG
+        shutil.copy(DEFAULT_CONFIG, CONFIG_PATH)
     if not os.path.exists(SYSTEM_PROMPT_PATH):
-        SYSTEM_PROMPT_PATH = DEFAULT_PROMPT
+        shutil.copy(DEFAULT_PROMPT, SYSTEM_PROMPT_PATH)
 
 
 def load_config():

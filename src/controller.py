@@ -13,8 +13,6 @@ def run():
 
         core.set_system_prompt(system_prompt)
 
-        print(f"Selected model: {core.model_path}")
-
         try:
             while True:
                 user_input = inp.get_input()

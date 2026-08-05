@@ -1,5 +1,5 @@
 input: terminal
 output:  kokoro
-core: llama_cpp
+core: deepseek
 context: flashback
 memory: remis
