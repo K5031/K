@@ -25,6 +25,7 @@ class Module(CoreInterface):
 
         self.log.info("Using model: %s (thinking=%s)", model, self.thinking)
         self._session = requests.Session()
+        self.last_usage = None
 
     def interrupt(self):
         self._interrupted = True
@@ -34,6 +35,7 @@ class Module(CoreInterface):
 
     def generate(self, user_input: str, context: list[dict], memories: str) -> Iterator[str]:
         self._interrupted = False
+        self.last_usage = None
 
         system_content = self.system_prompt
         if memories:
@@ -49,6 +51,7 @@ class Module(CoreInterface):
             "model": self.model,
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
             "temperature": 0.45,
             "top_p": 0.85,
             "max_tokens": 512,
@@ -87,7 +90,12 @@ class Module(CoreInterface):
                 if data.strip() == "[DONE]":
                     break
                 chunk = json.loads(data)
-                delta = chunk["choices"][0]["delta"]
+                if chunk.get("usage"):
+                    self.last_usage = chunk["usage"]
+                choices = chunk.get("choices") or []
+                if not choices:
+                    continue
+                delta = choices[0]["delta"]
                 token = delta.get("content", "")
                 if token:
                     yield token

@@ -1,5 +1,6 @@
+controller: cloud
 input: terminal
-output:  kokoro
+output: kokoro
 core: deepseek
-context: flashback
+context: cloud
 memory: remis

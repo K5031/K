@@ -6,6 +6,7 @@ from utils import resolve_model_path
 
 DEFAULT_MODEL = "gemma-4-26B-A4B-it-UD-Q4_K_M.gguf"
 DEFAULT_MAX_CONTEXT_TOKENS = 15600
+TRIM_TARGET_RATIO = 0.7
 
 
 class Module(ContextInterface):
@@ -28,9 +29,11 @@ class Module(ContextInterface):
         self.conversation.append({"role": role, "content": content})
 
         dropped = 0
-        while self._total_tokens() > self.max_context_tokens and len(self.conversation) > 1:
-            self.conversation.pop(0)
-            dropped += 1
+        if self._total_tokens() > self.max_context_tokens:
+            target = int(self.max_context_tokens * TRIM_TARGET_RATIO)
+            while self._total_tokens() > target and len(self.conversation) > 1:
+                self.conversation.pop(0)
+                dropped += 1
 
         if dropped:
             self.log.info("trimmed %d oldest message(s) to stay under %d token budget "

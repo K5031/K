@@ -18,7 +18,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from modules.context.flashback import Module  # noqa: E402
+from modules.context.local import Module  # noqa: E402
 
 
 def main():

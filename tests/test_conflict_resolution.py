@@ -15,7 +15,6 @@ it imports Module the same way your app does.
 import argparse
 import os
 import sys
-import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
