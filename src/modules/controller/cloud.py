@@ -35,8 +35,7 @@ class Module(ControllerInterface):
                         output.send(token)
                         reply += token
                     else:
-                        if hasattr(output, "flush"):
-                            output.flush()
+                        output.flush()
                 except KeyboardInterrupt:
                     core.interrupt()
                     output.interrupt()

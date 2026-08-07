@@ -5,6 +5,22 @@ from klogger import get_logger
 log = get_logger("Registry")
 
 
+class _MultiModule:
+    def __init__(self, instances):
+        self._instances = instances
+
+    def __getattr__(self, name):
+        matching = [inst for inst in self._instances if hasattr(inst, name)]
+        if not matching:
+            raise AttributeError(name)
+
+        def call_all(*args, **kwargs):
+            results = [getattr(inst, name)(*args, **kwargs) for inst in matching]
+            return results[0] if results else None
+
+        return call_all
+
+
 class Registry:
     def __init__(self):
         self._registry = {}
@@ -55,8 +71,16 @@ class Registry:
 
         api = cls()
         for capability, module_name in config.items():
-            log.info("Loading %s: %s", capability, module_name)
-            mod = importlib.import_module(f"modules.{capability}.{module_name}")
-            instance = mod.Module()
+            if isinstance(module_name, list):
+                instances = []
+                for name in module_name:
+                    log.info("Loading %s: %s", capability, name)
+                    mod = importlib.import_module(f"modules.{capability}.{name}")
+                    instances.append(mod.Module())
+                instance = _MultiModule(instances)
+            else:
+                log.info("Loading %s: %s", capability, module_name)
+                mod = importlib.import_module(f"modules.{capability}.{module_name}")
+                instance = mod.Module()
             api.register(capability, instance)
         return api

@@ -21,6 +21,9 @@ class OutputInterface(ABC):
     def interrupt(self) -> None:
         pass
 
+    @abstractmethod
+    def flush(self) -> None:
+        pass
 
 class CoreInterface(ABC):
     @abstractmethod
