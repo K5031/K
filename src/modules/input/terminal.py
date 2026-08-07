@@ -15,11 +15,7 @@ class Module(InputInterface):
         self.thread.start()
 
     def _run_loop(self):
-        prompted = False
         while self.running:
-            if not prompted and self.output_queue.empty():
-                print("\n> ", end="", flush=True)
-                prompted = True
             events = self._selector.select(timeout=0.2)
             if not events:
                 continue
@@ -28,9 +24,9 @@ class Module(InputInterface):
                 break
             text = line.rstrip("\n")
             self.output_queue.put(text)
-            prompted = False
 
     def get_input(self) -> str:
+        print("\n> ", end="", flush=True)
         return self.output_queue.get()
 
     def has_input(self) -> bool:
