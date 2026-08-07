@@ -1,15 +1,3 @@
-#!/usr/bin/env python3
-"""
-Memory Editor — view, edit, and delete long-term memories stored in Chroma.
-
-Drop this in your `src/scripts/` folder and run:
-    python memory_editor.py
-
-Editing a memory's text re-embeds it (using the same embedder mem0 used)
-so semantic search stays accurate after you edit it. Deleting just removes
-the entry.
-"""
-
 import sys
 import os
 import tkinter as tk

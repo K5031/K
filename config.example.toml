@@ -1,0 +1,6 @@
+controller = "cloud"
+input = "terminal"
+output = "kokoro"
+core = "deepseek"
+context = "cloud"
+memory = "remis"
