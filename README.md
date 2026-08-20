@@ -1,6 +1,6 @@
 # K
 
-A desktop AI assistant built from small, swappable modules — speech or text in, an LLM (local or cloud) in the middle, speech or text out — with short-term conversation context and long-term memory extraction.
+A modular desktop AI assistant.
 
 ## Installation
 
