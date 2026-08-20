@@ -63,19 +63,29 @@ class Module(CoreInterface):
             "Content-Type": "application/json",
         }
 
-        resp = self._session.post(
-            f"{DEEPSEEK_BASE_URL}/chat/completions",
-            headers=headers,
-            json=payload,
-            stream=True,
-            timeout=60,
-        )
+        try:
+            resp = self._session.post(
+                f"{DEEPSEEK_BASE_URL}/chat/completions",
+                headers=headers,
+                json=payload,
+                stream=True,
+                timeout=60,
+            )
+        except requests.exceptions.ConnectionError as e:
+            self.log.error("DeepSeek connection failed: %s", e)
+            yield "[connection error — check your network]"
+            return
+        except requests.exceptions.Timeout as e:
+            self.log.error("DeepSeek request timed out: %s", e)
+            yield "[request timed out]"
+            return
 
         try:
             resp.raise_for_status()
         except requests.HTTPError as e:
             self.log.error("DeepSeek API error: %s — %s", e, resp.text[:500])
-            raise
+            yield "[API error — check logs]"
+            return
 
         try:
             for line in resp.iter_lines():
@@ -99,5 +109,8 @@ class Module(CoreInterface):
                 token = delta.get("content", "")
                 if token:
                     yield token
+        except requests.exceptions.ConnectionError as e:
+            self.log.error("DeepSeek connection dropped mid-response: %s", e)
+            yield " [connection dropped]"
         finally:
             resp.close()

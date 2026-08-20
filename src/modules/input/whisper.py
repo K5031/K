@@ -8,6 +8,7 @@ import speech_recognition as sr
 import whisper
 from interfaces import InputInterface
 from klogger import get_logger
+from audio import ensure_audio_ready, resolve_pyaudio_input_device
 
 
 def _cuda_available():
@@ -31,10 +32,14 @@ class Module(InputInterface):
         self.record_timeout = record_timeout
         self.phrase_timeout = phrase_timeout
 
+        ensure_audio_ready()
+
         self._cuda = _cuda_available()
         self.log.info("CUDA available: %s", self._cuda)
 
-        self.source = sr.Microphone(sample_rate=16000)
+        device_index = resolve_pyaudio_input_device()
+        self.log.info("Using input device index: %s", device_index)
+        self.source = sr.Microphone(sample_rate=16000, device_index=device_index)
         self.recorder = self._setup_recorder()
 
         self.log.info("Loading Whisper model: %s", model)
@@ -54,8 +59,8 @@ class Module(InputInterface):
         recorder = sr.Recognizer()
         recorder.energy_threshold = self.energy_threshold
         recorder.dynamic_energy_threshold = False
-        with self.source:
-            recorder.adjust_for_ambient_noise(self.source)
+        # Ambient-noise calibration itself happens in _run_loop, not here —
+        # see the note there for why.
         return recorder
 
     def _record_callback(self, _, audio: sr.AudioData):
@@ -127,6 +132,16 @@ class Module(InputInterface):
             self.last_audio_time = None
 
     def _run_loop(self):
+        # Calibration and listen_in_background both open the mic's
+        # PyAudio stream — doing that open/close/reopen sequence here,
+        # on this single thread, is safe. What crashed the process
+        # before was doing the open/close half in __init__ on the main
+        # thread and the reopen half here on this background thread;
+        # PortAudio's ALSA backend isn't safe to re-init across threads.
+        with self.source:
+            self.recorder.adjust_for_ambient_noise(self.source)
+        self.log.info("calibrated energy_threshold: %s", self.recorder.energy_threshold)
+
         self.stop_listening = self.recorder.listen_in_background(
             self.source,
             self._record_callback,

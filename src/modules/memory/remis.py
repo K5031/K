@@ -282,7 +282,7 @@ class Module(MemoryInterface):
     def store(self, messages: list[dict]) -> None:
         self._queue.put(messages)
 
-    def retrieve(self, query: str) -> str:
+    def retrieve(self, query: str, max_distance: float = 0.6) -> str:
         if self.collection.count() == 0:
             return ""
         query_embedding = self._embed(query)
@@ -292,7 +292,12 @@ class Module(MemoryInterface):
             where={"user_id": self.user_id},
         )
         metadatas = results.get("metadatas", [[]])[0]
-        facts = [m.get("data", "") for m in metadatas if m.get("data")]
+        distances = results.get("distances", [[]])[0]
+        facts = [
+            m.get("data", "")
+            for m, d in zip(metadatas, distances)
+            if m.get("data") and d <= max_distance
+        ]
         if not facts:
             return ""
         return "\n".join(f"- {f}" for f in facts)

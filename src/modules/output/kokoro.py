@@ -5,16 +5,22 @@ from kokoro import KPipeline
 from queue import Empty
 from interfaces import OutputInterface
 from klogger import get_logger
+from audio import ensure_audio_ready, resolve_output_device
 
 
 class Module(OutputInterface):
     def __init__(self, voice="af_heart", lang_code="a", repo_id="hexgrad/Kokoro-82M"):
         self.log = get_logger("Kokoro")
 
+        ensure_audio_ready()
+
+        device_index = resolve_output_device()
+        self.log.info("Using output device index: %s", device_index)
         self.stream = sd.OutputStream(
             samplerate=24000,
             channels=1,
             dtype="float32",
+            device=device_index,
         )
         self.stream.start()
 
